@@ -5,17 +5,27 @@ use std::io;
 
 use super::trash_cli::Args;
 use dirs::home_dir;
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum TrashError {
+    #[error("{0}")]
+    IO(#[from] io::Error),
+}
 
 pub struct TrashControl {}
 
 impl TrashControl {
-    pub fn run(&self, args: Args) {
+    pub fn run(&self, args: Args) -> Result<(), TrashError> {
         if args.list {
-            let _ = self.list_trash();
+            self.list_trash()?;
+        } else if args.empty {
+            self.empty_trash()?;
         }
+        Ok(())
     }
 
-    fn list_trash(&self) -> io::Result<()> {
+    fn list_trash(&self) -> io::Result<Vec<PathBuf>> {
         let mut home_dir = home_dir().expect("Home directory does not exist or is empty");
         home_dir.push(".Trash");
         let trash_path = home_dir;
@@ -27,16 +37,30 @@ impl TrashControl {
             .into_iter()
             .map(|dir_entry| dir_entry.path())
             .collect();
-
         // iterate over all paths, map them to a string ending in newline, fold all of them into 1 string, and print it
         println!(
             "{}",
             contents
                 .iter()
-                .map(|n| format!("{:?}\n", n))
+                .map(|file_path| format!("{file_path:?}\n"))
                 .fold(String::new(), |acc, arg| { acc + arg.as_str() })
         );
 
+        Ok(contents)
+    }
+
+    fn empty_trash(&self) -> io::Result<()> {
+        let files = self.list_trash()?;
+        for file in files {
+            match file.is_dir() {
+                true => {
+                    std::fs::remove_dir_all(&file)?;
+                }
+                false => {
+                    std::fs::remove_file(&file)?;
+                }
+            }
+        }
         Ok(())
     }
 }

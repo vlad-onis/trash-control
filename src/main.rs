@@ -7,5 +7,5 @@ fn main() {
 
     let tc = TrashControl {};
 
-    tc.run(args);
+    tc.run(args).unwrap();
 }
